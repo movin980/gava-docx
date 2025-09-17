@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Gov Docs Vault</title>
+</head>
+<body>
+  <h1>Gov Docs Vault</h1>
+
+  <!-- Auth -->
+  <div>
+    <input id="email" type="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button id="register">Register</button>
+    <button id="login">Login</button>
+    <button id="logout">Logout</button>
+    <div id="user-info"></div>
+  </div>
+
+  <!-- Upload -->
+  <div>
+    <input id="file" type="file">
+    <input id="enc-key" type="text" placeholder="Encryption key">
+    <button id="upload">Encrypt & Upload</button>
+    <div id="status"></div>
+  </div>
+
+  <!-- Documents -->
+  <div id="docs"></div>
+
+  <!-- Firebase SDK (modular, from CDN) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-storage.js";
+    import CryptoJS from "https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/+esm";
+
+    // 🔹 Your Firebase config (fixed storageBucket)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBGofjaT3qiGUOAM73gxws4mwyoRAFHioQ",
+      authDomain: "document-app-d7764.firebaseapp.com",
+      projectId: "document-app-d7764",
+      storageBucket: "document-app-d7764.appspot.com",
+      messagingSenderId: "171454029756",
+      appId: "1:171454029756:web:5c92ff1edcb5e3d97a95b9",
+      measurementId: "G-DVQMMPRQW2"
+    };
+
+    // Init
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    // UI refs
+    const emailEl = document.getElementById("email");
+    const passEl = document.getElementById("password");
+    const info = document.getElementById("user-info");
+    const fileEl = document.getElementById("file");
+    const keyEl = document.getElementById("enc-key");
+    const statusEl = document.getElementById("status");
+    const docsEl = document.getElementById("docs");
+
+    // Auth handlers
+    document.getElementById("register").onclick = async () => {
+      await createUserWithEmailAndPassword(auth, emailEl.value, passEl.value);
+    };
+    document.getElementById("login").onclick = async () => {
+      await signInWithEmailAndPassword(auth, emailEl.value, passEl.value);
+    };
+    document.getElementById("logout").onclick = async () => {
+      await signOut(auth);
+    };
+
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        info.textContent = "Signed in: " + user.email;
+        listenDocs(user.uid);
+      } else {
+        info.textContent = "Not signed in";
+        docsEl.innerHTML = "";
+      }
+    });
+
+    // Listen docs
+    let unsub = null;
+    function listenDocs(uid) {
+      if (unsub) unsub();
+      const q = query(collection(db, "users", uid, "documents"), orderBy("uploadedAt", "desc"));
+      unsub = onSnapshot(q, snap => {
+        docsEl.innerHTML = "";
+        snap.forEach(d => {
+          const data = d.data();
+          const div = document.createElement("div");
+          div.innerHTML = `
+            <b>${data.name || "Unnamed"}</b>
+            <button data-url="${data.fileUrl}" data-id="${d.id}">Download</button>
+            <button data-del="${d.id}">Delete</button>
+          `;
+          docsEl.appendChild(div);
+          div.querySelector("[data-url]").onclick = () => downloadAndDecrypt(data.fileUrl, data.name || "file.bin");
+          div.querySelector("[data-del]").onclick = () => deleteDoc(doc(db, "users", uid, "documents", d.id));
+        });
+      });
+    }
+
+    // Upload encrypted
+    document.getElementById("upload").onclick = async () => {
+      const file = fileEl.files[0];
+      const key = keyEl.value;
+      if (!file || !key || !auth.currentUser) return alert("Missing input");
+
+      statusEl.textContent = "Encrypting...";
+      const ab = await file.arrayBuffer();
+      const wa = CryptoJS.lib.WordArray.create(ab);
+      const encrypted = CryptoJS.AES.encrypt(wa, key).toString();
+
+      const blob = new Blob([encrypted], { type: "text/plain" });
+      const path = `docs/${auth.currentUser.uid}/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, blob);
+      const url = await getDownloadURL(storageRef);
+
+      await addDoc(collection(db, "users", auth.currentUser.uid, "documents"), {
+        name: file.name,
+        fileUrl: url,
+        uploadedAt: new Date()
+      });
+
+      statusEl.textContent = "Uploaded";
+      fileEl.value = "";
+    };
+
+    // Download + decrypt
+    async function downloadAndDecrypt(url, filename) {
+      const key = prompt("Enter your key:");
+      if (!key) return;
+      const resp = await fetch(url);
+      const encrypted = await resp.text();
+      const decrypted = CryptoJS.AES.decrypt(encrypted, key);
+      const u8 = new Uint8Array(decrypted.words.length * 4);
+      for (let i = 0; i < decrypted.words.length; i++) {
+        const word = decrypted.words[i];
+        u8[i * 4] = (word >> 24) & 0xff;
+        u8[i * 4 + 1] = (word >> 16) & 0xff;
+        u8[i * 4 + 2] = (word >> 8) & 0xff;
+        u8[i * 4 + 3] = word & 0xff;
+      }
+      const blob = new Blob([u8], { type: "application/octet-stream" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+    }
+  </script>
+</body>
+</html>
