@@ -30,6 +30,7 @@
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
     import { getFirestore, collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
+    // ✅ Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyBGofjaT3qiGUOAM73gxws4mwyoRAFHioQ",
       authDomain: "document-app-d7764.firebaseapp.com",
@@ -50,90 +51,100 @@
     const uploadBtn = document.getElementById("uploadBtn");
     const fileList = document.getElementById("fileList");
 
-    // Load and show user files
+    // 🔹 Load and show user files
     async function loadFiles(user) {
       fileList.innerHTML = "";
-      const q = query(collection(db, "documents"), where("uid", "==", user.uid));
-      const querySnapshot = await getDocs(q);
-      querySnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        const li = document.createElement("li");
-        li.className = "flex justify-between items-center bg-gray-50 p-3 rounded";
+      try {
+        const q = query(collection(db, "documents"), where("uid", "==", user.uid));
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          const li = document.createElement("li");
+          li.className = "flex justify-between items-center bg-gray-50 p-3 rounded";
 
-        const fileName = document.createElement("span");
-        fileName.textContent = data.name;
+          const fileName = document.createElement("span");
+          fileName.textContent = data.name;
 
-        const downloadBtn = document.createElement("button");
-        downloadBtn.textContent = "Download";
-        downloadBtn.className = "bg-green-500 text-white px-3 py-1 rounded";
+          const downloadBtn = document.createElement("button");
+          downloadBtn.textContent = "Download";
+          downloadBtn.className = "bg-green-500 text-white px-3 py-1 rounded";
 
-        // Download handler
-        downloadBtn.addEventListener("click", () => {
-          try {
-            const decryptedBase64 = CryptoJS.AES.decrypt(data.data, SECRET_KEY).toString(CryptoJS.enc.Utf8);
+          // 🔹 Download handler
+          downloadBtn.addEventListener("click", () => {
+            try {
+              const decryptedBase64 = CryptoJS.AES.decrypt(data.data, SECRET_KEY).toString(CryptoJS.enc.Utf8);
 
-            function base64ToBlob(base64) {
-              const parts = base64.split(',');
-              const contentType = parts[0].match(/:(.*?);/)[1];
-              const byteCharacters = atob(parts[1]);
-              const byteArrays = [];
-
-              for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-                const slice = byteCharacters.slice(offset, offset + 512);
-                const byteNumbers = new Array(slice.length);
-                for (let i = 0; i < slice.length; i++) {
-                  byteNumbers[i] = slice.charCodeAt(i);
+              function base64ToBlob(base64) {
+                const parts = base64.split(',');
+                const contentType = parts[0].match(/:(.*?);/)[1];
+                const byteCharacters = atob(parts[1]);
+                const byteArrays = [];
+                for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+                  const slice = byteCharacters.slice(offset, offset + 512);
+                  const byteNumbers = new Array(slice.length);
+                  for (let i = 0; i < slice.length; i++) {
+                    byteNumbers[i] = slice.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  byteArrays.push(byteArray);
                 }
-                const byteArray = new Uint8Array(byteNumbers);
-                byteArrays.push(byteArray);
+                return new Blob(byteArrays, { type: contentType });
               }
-              return new Blob(byteArrays, { type: contentType });
+
+              const blob = base64ToBlob(decryptedBase64);
+              const link = document.createElement("a");
+              link.href = URL.createObjectURL(blob);
+              link.download = data.name;
+              link.click();
+              URL.revokeObjectURL(link.href);
+            } catch (err) {
+              console.error("Download error:", err);
+              alert("❌ Error decrypting file: " + err.message);
             }
+          });
 
-            const blob = base64ToBlob(decryptedBase64);
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = data.name;
-            link.click();
-            URL.revokeObjectURL(link.href);
-          } catch (err) {
-            alert("❌ Error decrypting file: " + err.message);
-          }
+          li.appendChild(fileName);
+          li.appendChild(downloadBtn);
+          fileList.appendChild(li);
         });
-
-        li.appendChild(fileName);
-        li.appendChild(downloadBtn);
-        fileList.appendChild(li);
-      });
+      } catch (err) {
+        console.error("Load error:", err);
+        alert("❌ Failed to load files: " + err.message);
+      }
     }
 
-    // Upload new file
+    // 🔹 Upload new file
     uploadBtn.addEventListener("click", async () => {
       const file = fileInput.files[0];
       if (!file) return alert("⚠️ Please select a file first!");
 
       const reader = new FileReader();
       reader.onload = async function(e) {
-        const base64 = e.target.result;
-        const encrypted = CryptoJS.AES.encrypt(base64, SECRET_KEY).toString();
+        try {
+          const base64 = e.target.result;
+          const encrypted = CryptoJS.AES.encrypt(base64, SECRET_KEY).toString();
 
-        const user = auth.currentUser;
-        if (!user) return alert("Not logged in!");
+          const user = auth.currentUser;
+          if (!user) return alert("Not logged in!");
 
-        await addDoc(collection(db, "documents"), {
-          uid: user.uid,
-          name: file.name,
-          data: encrypted
-        });
+          await addDoc(collection(db, "documents"), {
+            uid: user.uid,
+            name: file.name,
+            data: encrypted
+          });
 
-        alert("✅ File uploaded securely!");
-        fileInput.value = "";
-        loadFiles(user);
+          alert("✅ File uploaded securely!");
+          fileInput.value = "";
+          loadFiles(user);
+        } catch (err) {
+          console.error("Upload error:", err);
+          alert("❌ Upload failed: " + err.message);
+        }
       };
       reader.readAsDataURL(file);
     });
 
-    // Auth listener
+    // 🔹 Auth listener
     onAuthStateChanged(auth, (user) => {
       if (user) {
         loadFiles(user);
