@@ -4,19 +4,20 @@
   <meta charset="UTF-8">
   <title>Dashboard - My Document Vault</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen p-6">
   <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6">
-    <h1 class="text-2xl font-bold text-blue-600 mb-6">Welcome to Your Document Vault</h1>
+    <h1 class="text-2xl font-bold text-blue-600 mb-6">Your Document Vault</h1>
 
-    <!-- Upload Section -->
+    <!-- Upload -->
     <form id="upload-form" class="space-y-3 mb-6">
       <input type="file" id="fileInput" required class="w-full">
       <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Upload & Encrypt</button>
     </form>
 
-    <!-- List of documents -->
-    <h2 class="text-lg font-semibold mb-2">Your Documents</h2>
+    <!-- List -->
+    <h2 class="text-lg font-semibold mb-2">Saved Documents</h2>
     <ul id="doc-list" class="space-y-2"></ul>
 
     <!-- Logout -->
@@ -42,6 +43,8 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    const SECRET_KEY = "my-secret-key"; // 🔑 you can change this
+
     const fileInput = document.getElementById("fileInput");
     const docList = document.getElementById("doc-list");
 
@@ -50,33 +53,58 @@
       else loadDocs(user.uid);
     });
 
-    async function loadDocs(uid) {
-      docList.innerHTML = "";
-      const snapshot = await getDocs(collection(db, "users", uid, "documents"));
-      snapshot.forEach(doc => {
-        const li = document.createElement("li");
-        li.textContent = doc.data().name;
-        docList.appendChild(li);
-      });
-    }
-
+    // Upload + Encrypt
     document.getElementById("upload-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const file = fileInput.files[0];
       if (!file) return;
-      const user = auth.currentUser;
-      try {
-        await addDoc(collection(db, "users", user.uid, "documents"), {
-          name: file.name,
-          uploaded: new Date()
-        });
-        alert("Document added!");
-        loadDocs(user.uid);
-      } catch (err) {
-        alert(err.message);
-      }
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const encrypted = CryptoJS.AES.encrypt(reader.result, SECRET_KEY).toString();
+        const user = auth.currentUser;
+        try {
+          await addDoc(collection(db, "users", user.uid, "documents"), {
+            name: file.name,
+            data: encrypted,
+            uploaded: new Date()
+          });
+          alert("Document encrypted and saved!");
+          loadDocs(user.uid);
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      reader.readAsDataURL(file); // encode file as base64
     });
 
+    // Load + Download
+    async function loadDocs(uid) {
+      docList.innerHTML = "";
+      const snapshot = await getDocs(collection(db, "users", uid, "documents"));
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const li = document.createElement("li");
+        li.className = "flex justify-between items-center p-2 border rounded";
+
+        li.innerHTML = `
+          <span>${data.name}</span>
+          <button class="bg-green-500 text-white px-3 py-1 rounded">Download</button>
+        `;
+
+        li.querySelector("button").addEventListener("click", () => {
+          const decrypted = CryptoJS.AES.decrypt(data.data, SECRET_KEY).toString(CryptoJS.enc.Utf8);
+          const link = document.createElement("a");
+          link.href = decrypted;
+          link.download = data.name;
+          link.click();
+        });
+
+        docList.appendChild(li);
+      });
+    }
+
+    // Logout
     document.getElementById("logout").addEventListener("click", async () => {
       await signOut(auth);
     });
