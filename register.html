@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Register - My Document Vault</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <div class="bg-white p-8 rounded-2xl shadow-lg w-96">
+    <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">Create Account</h1>
+    
+    <form id="register-form" class="space-y-3">
+      <input id="email" type="email" placeholder="Email" required class="border p-2 rounded w-full">
+      <input id="password" type="password" placeholder="Password" required class="border p-2 rounded w-full">
+      <button type="submit" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded w-full">Register</button>
+    </form>
+    <p class="text-center text-gray-500 mt-4">Already have an account? <a href="index.html" class="text-blue-500">Login</a></p>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBGofjaT3qiGUOAM73gxws4mwyoRAFHioQ",
+      authDomain: "document-app-d7764.firebaseapp.com",
+      projectId: "document-app-d7764",
+      storageBucket: "document-app-d7764.appspot.com",
+      messagingSenderId: "171454029756",
+      appId: "1:171454029756:web:5c92ff1edcb5e3d97a95b9",
+      measurementId: "G-DVQMMPRQW2"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    document.getElementById("register-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value;
+      const pass = document.getElementById("password").value;
+      try {
+        await createUserWithEmailAndPassword(auth, email, pass);
+        alert("Registration successful! Please log in.");
+        window.location.href = "index.html";
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  </script>
+</body>
+</html>
