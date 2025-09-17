@@ -2,45 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>My Document Vault - Login</title>
+  <title>Login - My Document Vault</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-
   <div class="bg-white p-8 rounded-2xl shadow-lg w-96">
     <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">My Document Vault</h1>
     
-    <!-- Login Form -->
     <form id="login-form" class="space-y-3">
-      <input id="email" type="email" placeholder="Email" required 
-             class="border p-2 rounded w-full focus:outline-none focus:ring-2 focus:ring-blue-400">
-      
+      <input id="email" type="email" placeholder="Email" required class="border p-2 rounded w-full">
       <div class="relative">
-        <input id="password" type="password" placeholder="Password" required 
-               class="border p-2 rounded w-full focus:outline-none focus:ring-2 focus:ring-blue-400">
-        <button type="button" id="togglePassword" 
-                class="absolute inset-y-0 right-3 text-gray-500">👁️</button>
+        <input id="password" type="password" placeholder="Password" required class="border p-2 rounded w-full">
+        <button type="button" id="togglePassword" class="absolute inset-y-0 right-3 text-gray-500">👁️</button>
       </div>
-
-      <button type="submit" 
-              class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded w-full">
-        Login
-      </button>
-
-      <button type="button" id="reset-password" 
-              class="text-blue-500 underline w-full text-center">
-        Forgot Password?
-      </button>
+      <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded w-full">Login</button>
+      <button type="button" id="reset-password" class="text-blue-500 underline w-full">Forgot Password?</button>
     </form>
+    <p class="text-center text-gray-500 mt-4">No account? <a href="register.html" class="text-blue-500">Register</a></p>
   </div>
 
-  <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } 
-      from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+    import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 
-    // Your Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyBGofjaT3qiGUOAM73gxws4mwyoRAFHioQ",
       authDomain: "document-app-d7764.firebaseapp.com",
@@ -51,27 +35,21 @@
       measurementId: "G-DVQMMPRQW2"
     };
 
-    // Init Firebase
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
 
-    // Login
     document.getElementById("login-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const email = document.getElementById("email").value;
       const pass = document.getElementById("password").value;
-
       try {
         await signInWithEmailAndPassword(auth, email, pass);
-        alert("Login successful!");
-        // 👉 redirect to vault dashboard (e.g. dashboard.html)
-        // window.location.href = "dashboard.html";
+        window.location.href = "dashboard.html";
       } catch (err) {
         alert(err.message);
       }
     });
 
-    // Password Reset
     document.getElementById("reset-password").addEventListener("click", async () => {
       const email = document.getElementById("email").value;
       if (!email) return alert("Enter your email first!");
@@ -83,12 +61,10 @@
       }
     });
 
-    // Toggle password visibility
     document.getElementById("togglePassword").addEventListener("click", () => {
       const passField = document.getElementById("password");
       passField.type = passField.type === "password" ? "text" : "password";
     });
   </script>
-
 </body>
 </html>
