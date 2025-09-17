@@ -3,45 +3,51 @@
 <head>
   <meta charset="utf-8" />
   <title>Gov Docs Vault</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h1>Gov Docs Vault</h1>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+  <h1 class="text-3xl font-bold text-blue-600 mb-6">📑 Gov Docs Vault</h1>
 
-  <!-- Auth -->
-  <div>
-    <input id="email" type="email" placeholder="Email">
-    <input id="password" type="password" placeholder="Password">
-    <button id="register">Register</button>
-    <button id="login">Login</button>
-    <button id="logout">Logout</button>
-    <div id="user-info"></div>
+  <!-- Auth Section -->
+  <div class="bg-white shadow-lg rounded-xl p-6 w-full max-w-md mb-6">
+    <h2 class="text-lg font-semibold mb-3">Authentication</h2>
+    <input id="email" type="email" placeholder="Email" class="border p-2 rounded w-full mb-2">
+    <input id="password" type="password" placeholder="Password" class="border p-2 rounded w-full mb-2">
+    <div class="flex gap-2">
+      <button id="register" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">Register</button>
+      <button id="login" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Login</button>
+      <button id="logout" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">Logout</button>
+    </div>
+    <div id="user-info" class="mt-3 text-gray-600"></div>
   </div>
 
-  <!-- Upload -->
-  <div>
-    <input id="file" type="file">
-    <input id="enc-key" type="text" placeholder="Encryption key">
-    <button id="upload">Encrypt & Upload</button>
-    <div id="status"></div>
+  <!-- Upload Section -->
+  <div class="bg-white shadow-lg rounded-xl p-6 w-full max-w-md mb-6">
+    <h2 class="text-lg font-semibold mb-3">Upload Document</h2>
+    <input id="file" type="file" class="block mb-2">
+    <input id="enc-key" type="text" placeholder="Encryption key" class="border p-2 rounded w-full mb-2">
+    <button id="upload" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded w-full">Encrypt & Save</button>
+    <div id="status" class="mt-2 text-sm text-gray-500"></div>
   </div>
 
   <!-- Documents -->
-  <div id="docs"></div>
+  <div class="bg-white shadow-lg rounded-xl p-6 w-full max-w-md">
+    <h2 class="text-lg font-semibold mb-3">My Documents</h2>
+    <div id="docs" class="space-y-3"></div>
+  </div>
 
-  <!-- Firebase SDK (modular, from CDN) -->
+  <!-- Firebase + CryptoJS -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
     import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
     import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-storage.js";
     import CryptoJS from "https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/+esm";
 
-    // 🔹 Your Firebase config (fixed storageBucket)
+    // 🔹 Your Firebase config (fixed bucket removed since no storage)
     const firebaseConfig = {
       apiKey: "AIzaSyBGofjaT3qiGUOAM73gxws4mwyoRAFHioQ",
       authDomain: "document-app-d7764.firebaseapp.com",
       projectId: "document-app-d7764",
-      storageBucket: "document-app-d7764.appspot.com",
       messagingSenderId: "171454029756",
       appId: "1:171454029756:web:5c92ff1edcb5e3d97a95b9",
       measurementId: "G-DVQMMPRQW2"
@@ -51,7 +57,6 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const storage = getStorage(app);
 
     // UI refs
     const emailEl = document.getElementById("email");
@@ -62,7 +67,7 @@
     const statusEl = document.getElementById("status");
     const docsEl = document.getElementById("docs");
 
-    // Auth handlers
+    // Auth
     document.getElementById("register").onclick = async () => {
       await createUserWithEmailAndPassword(auth, emailEl.value, passEl.value);
     };
@@ -93,13 +98,16 @@
         snap.forEach(d => {
           const data = d.data();
           const div = document.createElement("div");
+          div.className = "p-3 border rounded flex justify-between items-center";
           div.innerHTML = `
-            <b>${data.name || "Unnamed"}</b>
-            <button data-url="${data.fileUrl}" data-id="${d.id}">Download</button>
-            <button data-del="${d.id}">Delete</button>
+            <span class="font-medium">${data.name || "Unnamed"}</span>
+            <div class="flex gap-2">
+              <button class="bg-blue-500 text-white px-2 py-1 rounded text-sm" data-id="${d.id}" data-data="${data.content}">Download</button>
+              <button class="bg-red-500 text-white px-2 py-1 rounded text-sm" data-del="${d.id}">Delete</button>
+            </div>
           `;
           docsEl.appendChild(div);
-          div.querySelector("[data-url]").onclick = () => downloadAndDecrypt(data.fileUrl, data.name || "file.bin");
+          div.querySelector("[data-id]").onclick = () => downloadAndDecrypt(data.content, data.name);
           div.querySelector("[data-del]").onclick = () => deleteDoc(doc(db, "users", uid, "documents", d.id));
         });
       });
@@ -116,28 +124,20 @@
       const wa = CryptoJS.lib.WordArray.create(ab);
       const encrypted = CryptoJS.AES.encrypt(wa, key).toString();
 
-      const blob = new Blob([encrypted], { type: "text/plain" });
-      const path = `docs/${auth.currentUser.uid}/${Date.now()}_${file.name}`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, blob);
-      const url = await getDownloadURL(storageRef);
-
       await addDoc(collection(db, "users", auth.currentUser.uid, "documents"), {
         name: file.name,
-        fileUrl: url,
+        content: encrypted,
         uploadedAt: new Date()
       });
 
-      statusEl.textContent = "Uploaded";
+      statusEl.textContent = "Saved!";
       fileEl.value = "";
     };
 
     // Download + decrypt
-    async function downloadAndDecrypt(url, filename) {
+    function downloadAndDecrypt(encrypted, filename) {
       const key = prompt("Enter your key:");
       if (!key) return;
-      const resp = await fetch(url);
-      const encrypted = await resp.text();
       const decrypted = CryptoJS.AES.decrypt(encrypted, key);
       const u8 = new Uint8Array(decrypted.words.length * 4);
       for (let i = 0; i < decrypted.words.length; i++) {
