@@ -2,33 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard - My Document Vault</title>
+  <title>Login - My Document Vault</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
-<body class="bg-gray-100 min-h-screen p-6">
-  <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6">
-    <h1 class="text-2xl font-bold text-blue-600 mb-6">Your Document Vault</h1>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
 
-    <!-- Upload -->
-    <form id="upload-form" class="space-y-3 mb-6">
-      <input type="file" id="fileInput" required class="w-full">
-      <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Upload & Encrypt</button>
+  <div class="bg-white p-8 rounded-2xl shadow-lg w-96">
+    <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">My Document Vault</h1>
+    
+    <!-- Login Form -->
+    <form id="login-form" class="space-y-3">
+      <input id="email" type="email" placeholder="Email" required 
+             class="border p-2 rounded w-full focus:outline-none focus:ring-2 focus:ring-blue-400">
+      
+      <div class="relative">
+        <input id="password" type="password" placeholder="Password" required 
+               class="border p-2 rounded w-full focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <button type="button" id="togglePassword" 
+                class="absolute inset-y-0 right-3 text-gray-500">👁️</button>
+      </div>
+
+      <button type="submit" 
+              class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded w-full">
+        Login
+      </button>
+
+      <button type="button" id="reset-password" 
+              class="text-blue-500 underline w-full text-center">
+        Forgot Password?
+      </button>
     </form>
 
-    <!-- List -->
-    <h2 class="text-lg font-semibold mb-2">Saved Documents</h2>
-    <ul id="doc-list" class="space-y-2"></ul>
+    <!-- Success/Error messages -->
+    <div id="message" class="mt-4 text-center"></div>
 
-    <!-- Logout -->
-    <button id="logout" class="mt-6 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">Logout</button>
+    <p class="text-center text-gray-500 mt-4">
+      No account? <a href="register.html" class="text-blue-500">Register</a>
+    </p>
   </div>
 
+  <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } 
+      from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 
+    // ✅ Your Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyBGofjaT3qiGUOAM73gxws4mwyoRAFHioQ",
       authDomain: "document-app-d7764.firebaseapp.com",
@@ -39,75 +58,48 @@
       measurementId: "G-DVQMMPRQW2"
     };
 
+    // Init Firebase
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = getFirestore(app);
 
-    const SECRET_KEY = "my-secret-key"; // 🔑 you can change this
+    const messageBox = document.getElementById("message");
 
-    const fileInput = document.getElementById("fileInput");
-    const docList = document.getElementById("doc-list");
-
-    onAuthStateChanged(auth, (user) => {
-      if (!user) window.location.href = "index.html";
-      else loadDocs(user.uid);
-    });
-
-    // Upload + Encrypt
-    document.getElementById("upload-form").addEventListener("submit", async (e) => {
+    // 🔹 Login
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const file = fileInput.files[0];
-      if (!file) return;
+      const email = document.getElementById("email").value;
+      const pass = document.getElementById("password").value;
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const encrypted = CryptoJS.AES.encrypt(reader.result, SECRET_KEY).toString();
-        const user = auth.currentUser;
-        try {
-          await addDoc(collection(db, "users", user.uid, "documents"), {
-            name: file.name,
-            data: encrypted,
-            uploaded: new Date()
-          });
-          alert("Document encrypted and saved!");
-          loadDocs(user.uid);
-        } catch (err) {
-          alert(err.message);
-        }
-      };
-      reader.readAsDataURL(file); // encode file as base64
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        window.location.href = "dashboard.html"; // ✅ redirect
+      } catch (err) {
+        messageBox.innerHTML = `<p class="text-red-500">${err.message}</p>`;
+      }
     });
 
-    // Load + Download
-    async function loadDocs(uid) {
-      docList.innerHTML = "";
-      const snapshot = await getDocs(collection(db, "users", uid, "documents"));
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        const li = document.createElement("li");
-        li.className = "flex justify-between items-center p-2 border rounded";
+    // 🔹 Forgot Password
+    document.getElementById("reset-password").addEventListener("click", async () => {
+      const email = document.getElementById("email").value;
+      if (!email) {
+        messageBox.innerHTML = `<p class="text-red-500">⚠️ Enter your email first!</p>`;
+        return;
+      }
 
-        li.innerHTML = `
-          <span>${data.name}</span>
-          <button class="bg-green-500 text-white px-3 py-1 rounded">Download</button>
-        `;
+      try {
+        await sendPasswordResetEmail(auth, email);
+        messageBox.innerHTML = `<p class="text-green-500">✅ Password reset email sent! Check your inbox.</p>`;
+      } catch (err) {
+        messageBox.innerHTML = `<p class="text-red-500">❌ ${err.message}</p>`;
+      }
+    });
 
-        li.querySelector("button").addEventListener("click", () => {
-          const decrypted = CryptoJS.AES.decrypt(data.data, SECRET_KEY).toString(CryptoJS.enc.Utf8);
-          const link = document.createElement("a");
-          link.href = decrypted;
-          link.download = data.name;
-          link.click();
-        });
-
-        docList.appendChild(li);
-      });
-    }
-
-    // Logout
-    document.getElementById("logout").addEventListener("click", async () => {
-      await signOut(auth);
+    // 🔹 Toggle Password Visibility
+    document.getElementById("togglePassword").addEventListener("click", () => {
+      const passField = document.getElementById("password");
+      passField.type = passField.type === "password" ? "text" : "password";
     });
   </script>
+
 </body>
 </html>
