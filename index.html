@@ -11,13 +11,23 @@
   <!-- Auth Section -->
   <div class="bg-white shadow-lg rounded-xl p-6 w-full max-w-md mb-6">
     <h2 class="text-lg font-semibold mb-3">Authentication</h2>
-    <input id="email" type="email" placeholder="Email" class="border p-2 rounded w-full mb-2">
-    <input id="password" type="password" placeholder="Password" class="border p-2 rounded w-full mb-2">
-    <div class="flex gap-2">
-      <button id="register" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">Register</button>
-      <button id="login" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Login</button>
-      <button id="logout" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">Logout</button>
-    </div>
+
+    <!-- Register Form -->
+    <form id="register-form" class="space-y-2 mb-4">
+      <input id="reg-email" type="email" placeholder="Email" required class="border p-2 rounded w-full">
+      <input id="reg-pass" type="password" placeholder="Password" required class="border p-2 rounded w-full">
+      <button type="submit" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded w-full">Register</button>
+    </form>
+
+    <!-- Login Form -->
+    <form id="login-form" class="space-y-2 mb-2">
+      <input id="log-email" type="email" placeholder="Email" required class="border p-2 rounded w-full">
+      <input id="log-pass" type="password" placeholder="Password" required class="border p-2 rounded w-full">
+      <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded w-full">Login</button>
+    </form>
+
+    <button id="logout" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded w-full">Logout</button>
+
     <div id="user-info" class="mt-3 text-gray-600"></div>
   </div>
 
@@ -43,7 +53,7 @@
     import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
     import CryptoJS from "https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/+esm";
 
-    // 🔹 Your Firebase config (fixed bucket removed since no storage)
+    // 🔹 Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyBGofjaT3qiGUOAM73gxws4mwyoRAFHioQ",
       authDomain: "document-app-d7764.firebaseapp.com",
@@ -59,25 +69,42 @@
     const db = getFirestore(app);
 
     // UI refs
-    const emailEl = document.getElementById("email");
-    const passEl = document.getElementById("password");
     const info = document.getElementById("user-info");
     const fileEl = document.getElementById("file");
     const keyEl = document.getElementById("enc-key");
     const statusEl = document.getElementById("status");
     const docsEl = document.getElementById("docs");
 
-    // Auth
-    document.getElementById("register").onclick = async () => {
-      await createUserWithEmailAndPassword(auth, emailEl.value, passEl.value);
-    };
-    document.getElementById("login").onclick = async () => {
-      await signInWithEmailAndPassword(auth, emailEl.value, passEl.value);
-    };
+    // 🔐 Register
+    document.getElementById("register-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("reg-email").value;
+      const pass = document.getElementById("reg-pass").value;
+      try {
+        await createUserWithEmailAndPassword(auth, email, pass);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    // 🔐 Login (browser now detects as real login → password saving works)
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("log-email").value;
+      const pass = document.getElementById("log-pass").value;
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    // Logout
     document.getElementById("logout").onclick = async () => {
       await signOut(auth);
     };
 
+    // Track login state
     onAuthStateChanged(auth, user => {
       if (user) {
         info.textContent = "Signed in: " + user.email;
